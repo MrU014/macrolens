@@ -62,6 +62,8 @@ Single-page app. `app.js` swaps screens by toggling per-tab containers; each scr
 ```
 MacroLens/
 ├── index.html              app shell, tab bar, modal root
+├── tests.html              browser-run assertions for nutrition.js
+├── README.md               setup, API-key walkthrough, manual test checklist
 ├── manifest.webmanifest    PWA install metadata
 ├── sw.js                   service worker: cache-first shell, network-only API
 ├── icons/                  icon.svg + 192/512 PNG
@@ -74,7 +76,7 @@ MacroLens/
     ├── store.js            IndexedDB wrapper, state cache, export/import
     ├── gemini.js           scan API client (prompt, JSON parse, retry)
     ├── nutrition.js        pure functions: bulk score, surplus, heatmap, notes, suggestions
-    ├── foods.js            built-in food DB (hostel/Indian staples) + food memory
+    ├── foods.js            built-in food DB (~50 hostel/Indian staples, per-100g macros + portion presets) + food memory
     └── ui/
         ├── components.js   ring/bar renderers, sheet/toast/confetti helpers
         ├── home.js  scan.js  history.js  analytics.js  profile.js
@@ -138,6 +140,7 @@ Reverse-chronological day cards: date · total kcal/protein vs goals (mini bars)
 ### 5.5 Analytics
 
 Range switch: 7 / 30 / 90 days. All charts hand-rolled SVG.
+- **Gains panel** (top row): Muscle Support % today · protein streak · days in surplus (7-day window) · recovery indicator · **Mass Meter** — gauge of predicted kg/month from the surplus predictor
 - Weekly average cards: kcal, protein, surplus, weight change
 - **Protein consistency:** % of days ≥90% of protein goal
 - **Protein heatmap:** hour-of-day × day grid, colored by protein logged that hour
@@ -148,7 +151,7 @@ Range switch: 7 / 30 / 90 days. All charts hand-rolled SVG.
 
 ### 5.6 Profile
 
-Personal: name · current weight (opens weight log) · target weight + target date · gym days/week.
+Personal: name · current weight (opens weight log) · target weight + target date · gym days/week · age + height (optional — asked once when the maintenance calculator is first used, stored in settings).
 Goals: maintenance kcal (manual, with optional Mifflin-St Jeor calculator helper: `10×kg + 6.25×cm − 5×age + 5`, × activity factor) · goal kcal/protein/fat/fibre (suggest: maintenance+300 · 2.0 g/kg · 25% kcal · 35g — editable).
 AI: Gemini API key (masked input · "Test key" button hits the API with "ping" · link to aistudio.google.com walkthrough).
 Data: Export backup · Import · Reset all (double-confirm).
@@ -161,7 +164,7 @@ Name + current weight → targets (pre-filled suggestions) → optional API key 
 
 ## 6. Gemini integration (`gemini.js`)
 
-- **Endpoint:** `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=<KEY>` with `generationConfig.responseMimeType: "application/json"`.
+- **Endpoint:** `POST https://generativelanguage.googleapis.com/v1beta/models/<MODEL>:generateContent?key=<KEY>` with `generationConfig.responseMimeType: "application/json"`. `MODEL` is a named constant at the top of `gemini.js`, default `gemini-2.5-flash` — one-line change when Google ships newer flash models.
 - **Request:** downscaled JPEG as `inline_data` (base64) + prompt: *expert nutritionist for Indian/hostel food; estimate the full plate as one entry; return ONLY JSON* `{name, portion_grams, kcal, protein_g, carbs_g, fat_g, fibre_g, confidence, assumptions}`.
 - **Validation:** parse JSON; all macro fields finite numbers ≥0; confidence clamped 0–1. On parse/validation failure → **one** automatic retry with "return strictly valid JSON" appended → then friendly error + "Add manually instead?" shortcut.
 - **Errors:** no key → sheet pointing to Profile; HTTP 429 → "Free tier is catching its breath — try again in a minute"; offline/network → "You're offline — log it manually and scan next time."
