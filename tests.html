@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MacroLens — nutrition.js tests</title>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; background: #0c0e11; color: #f2f4f6; padding: 24px; max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 22px; }
+    #summary { font-size: 16px; font-weight: 700; padding: 12px 16px; border-radius: 12px; margin: 12px 0; }
+    .ok { background: rgba(127,174,139,.15); color: #9ecfaa; }
+    .bad { background: rgba(217,105,78,.15); color: #ffb9a8; }
+    .row { display: flex; gap: 10px; padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.07); font-size: 13px; }
+    .pass { color: #9ecfaa; } .fail { color: #ff9a86; font-weight: 700; }
+    .name { flex: 1; } .detail { color: #8a8f98; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>MacroLens · nutrition.js tests</h1>
+  <div id="summary">Running…</div>
+  <div id="results"></div>
+
+  <script type="module">
+    import * as N from './js/nutrition.js';
+
+    const results = [];
+    const approx = (a, b, eps = 0.5) => Math.abs(a - b) <= eps;
+    function check(name, cond, detail = '') { results.push({ name, pass: !!cond, detail }); }
+    function eq(name, got, want) { check(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); }
+
+    // clamp
+    eq('clamp01 over', N.clamp01(1.4), 1);
+    eq('clamp01 under', N.clamp01(-3), 0);
+
+    // sumMacros
+    eq('sumMacros adds', N.sumMacros([{kcal:100,protein:10,carbs:5,fat:2,fibre:1},{kcal:50,protein:5,carbs:0,fat:0,fibre:1}]),
+      {kcal:150,protein:15,carbs:5,fat:2,fibre:2});
+    eq('sumMacros empty', N.sumMacros([]), {kcal:0,protein:0,carbs:0,fat:0,fibre:0});
+
+    // scaleMacros
+    const sc = N.scaleMacros({kcal:400,protein:30,carbs:40,fat:10,fibre:4}, 200, 300);
+    check('scaleMacros kcal 400→600', sc.kcal === 600, JSON.stringify(sc));
+    check('scaleMacros protein 30→45', sc.protein === 45, JSON.stringify(sc));
+    eq('scaleMacros zero grams safe', N.scaleMacros({kcal:100}, 0, 50).grams, 50);
+
+    // mealTypeForTime
+    eq('breakfast', N.mealTypeForTime('08:30'), 'breakfast');
+    eq('lunch', N.mealTypeForTime('13:00'), 'lunch');
+    eq('snack', N.mealTypeForTime('17:00'), 'snack');
+    eq('dinner', N.mealTypeForTime('20:30'), 'dinner');
+
+    // bulkScore
+    eq('bulkScore perfect', N.bulkScore({kcal:3000,goalKcal:3000,protein:170,goalProtein:170,mealCount:3}), 100);
+    eq('bulkScore empty', N.bulkScore({kcal:0,goalKcal:3000,protein:0,goalProtein:170,mealCount:0}), 0);
+    check('bulkScore half', approx(N.bulkScore({kcal:1500,goalKcal:3000,protein:85,goalProtein:170,mealCount:1}), 46, 2),
+      String(N.bulkScore({kcal:1500,goalKcal:3000,protein:85,goalProtein:170,mealCount:1})));
+    check('bulkScore overeat taper', N.bulkScore({kcal:4000,goalKcal:3000,protein:170,goalProtein:170,mealCount:3}) < 100, 'should drop below 100');
+
+    // muscleSupport
+    eq('muscleSupport full', N.muscleSupport({protein:170,goalProtein:170,kcal:3000,goalKcal:3000}), 100);
+
+    // surplus & prediction
+    eq('surplus', N.surplus(3000, 2700), 300);
+    check('predictWeeklyGain ~0.27', approx(N.predictWeeklyGain(3000, 2700), 0.27, 0.05), String(N.predictWeeklyGain(3000,2700)));
+
+    // weightTrend
+    const wt = N.weightTrend([
+      {dateKey:'2026-06-01',kg:70},{dateKey:'2026-06-02',kg:70},{dateKey:'2026-06-03',kg:70},{dateKey:'2026-06-04',kg:70},
+      {dateKey:'2026-06-05',kg:70},{dateKey:'2026-06-06',kg:70},{dateKey:'2026-06-07',kg:70},
+      {dateKey:'2026-06-08',kg:71},{dateKey:'2026-06-09',kg:71},{dateKey:'2026-06-10',kg:71},{dateKey:'2026-06-11',kg:71},
+      {dateKey:'2026-06-12',kg:71},{dateKey:'2026-06-13',kg:71},{dateKey:'2026-06-14',kg:71},
+    ]);
+    eq('weightTrend latest', wt.latest, 71);
+    eq('weightTrend deltaWeek +1', wt.deltaWeek, 1);
+
+    // streak / surplus days
+    eq('proteinStreak trailing', N.proteinStreak([{dateKey:'a',protein:100},{dateKey:'b',protein:200},{dateKey:'c',protein:180}], 170), 2);
+    eq('proteinStreak broken', N.proteinStreak([{dateKey:'a',protein:200},{dateKey:'b',protein:100}], 170), 0);
+    eq('daysInSurplus', N.daysInSurplus([2800,2600,3000,2700], 2700), 3);
+
+    // missedCalories
+    const mc = N.missedCalories({kcal:600, protein:40});
+    check('missedCalories returns items', mc.items.length >= 1 && mc.items.length <= 3, JSON.stringify(mc.total));
+    check('missedCalories protein-priority first', mc.items[0].dense === 'protein', mc.items[0]?.label);
+    eq('missedCalories tiny gap empty', N.missedCalories({kcal:40, protein:0}).items.length, 0);
+
+    // aiNotes
+    const lateLowProtein = N.aiNotes({protein:50, goalProtein:170, kcal:2000, goalKcal:3000, hour:21});
+    check('aiNotes flags low protein at night', lateLowProtein.some(n => n.toLowerCase().includes('protein')), JSON.stringify(lateLowProtein));
+    check('aiNotes caps at 2', N.aiNotes({protein:10,goalProtein:170,kcal:500,goalKcal:3000,hour:22,kcalYesterday:500,goalKcalYesterday:3000,fibreAvgThisWeek:30,fibreAvgLastWeek:10,streak:5}).length <= 2, '');
+
+    // render
+    const passed = results.filter(r => r.pass).length;
+    const summary = document.getElementById('summary');
+    summary.textContent = `${passed}/${results.length} passed`;
+    summary.className = passed === results.length ? 'ok' : 'bad';
+    const box = document.getElementById('results');
+    for (const r of results) {
+      const row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = `<span class="${r.pass ? 'pass' : 'fail'}">${r.pass ? '✓' : '✗'}</span>
+        <span class="name">${r.name}</span><span class="detail">${r.pass ? '' : r.detail}</span>`;
+      box.appendChild(row);
+    }
+  </script>
+</body>
+</html>
