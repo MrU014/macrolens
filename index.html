@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0c0e11">
+  <meta name="theme-color" content="#f4f4f1">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="mobile-web-app-capable" content="yes">
   <title>MacroLens</title>
   <link rel="manifest" href="./manifest.webmanifest">
@@ -19,17 +19,28 @@
   <link rel="stylesheet" href="./css/screens.css">
 </head>
 <body>
-  <div class="ambient ambient-green"></div>
-  <div class="ambient ambient-orange"></div>
-
   <main id="app" class="app-scroll"><!-- screens render here --></main>
 
   <nav class="tabbar">
-    <button class="tab active" data-tab="home"><span class="tab-ico">⌂</span><span class="tab-lbl">Home</span></button>
-    <button class="tab" data-tab="history"><span class="tab-ico">🗓</span><span class="tab-lbl">History</span></button>
-    <button id="fab" class="fab" aria-label="Scan meal">⌖</button>
-    <button class="tab" data-tab="analytics"><span class="tab-ico">📈</span><span class="tab-lbl">Stats</span></button>
-    <button class="tab" data-tab="profile"><span class="tab-ico">👤</span><span class="tab-lbl">Profile</span></button>
+    <button class="tab active" data-tab="home" aria-label="Home">
+      <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span class="tab-lbl">Home</span>
+    </button>
+    <button class="tab" data-tab="history" aria-label="History">
+      <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M9 3v4M15 3v4"/></svg>
+      <span class="tab-lbl">History</span>
+    </button>
+    <button id="fab" class="fab" aria-label="Scan meal">
+      <svg viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3.2"/></svg>
+    </button>
+    <button class="tab" data-tab="analytics" aria-label="Stats">
+      <svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+      <span class="tab-lbl">Stats</span>
+    </button>
+    <button class="tab" data-tab="profile" aria-label="Profile">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+      <span class="tab-lbl">Profile</span>
+    </button>
   </nav>
 
   <div id="sheet-root"></div>

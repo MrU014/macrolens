@@ -1,6 +1,7 @@
-// profile.js — goal, body stats, targets, AI key, and data management.
+// profile.js — account, goal, body stats, targets, AI key, and data management.
 import * as store from '../store.js';
 import * as N from '../nutrition.js';
+import * as profiles from '../profiles.js';
 import { testKey } from '../gemini.js';
 import { el, openSheet, closeSheet, toast } from './components.js';
 
@@ -28,21 +29,33 @@ export async function render(root, ctx) {
     return el('.field.row-field', {}, [el('label', {}, [label]), sel]);
   };
 
+  const active = profiles.getActive();
+
   root.replaceChildren();
   root.appendChild(el('.screen.profile', {}, [
     el('h1.page-title', {}, ['Profile']),
 
+    // ACCOUNT / profile
+    el('.card.settings-card', {}, [
+      el('.section-label', {}, ['Account']),
+      el('.current-user', {}, [
+        el('.avatar', { style: { background: active?.color || '#4e9a6b' } }, [profiles.initial(active?.name || s.name)]),
+        el('div', {}, [el('.cu-name', {}, [active?.name || s.name || 'Me']), el('.cu-sub', {}, [`${profiles.listProfiles().length} profile${profiles.listProfiles().length === 1 ? '' : 's'} on this device`])]),
+      ]),
+      el('button.btn-ghost.full', { onclick: () => ctx.switchUser() }, ['Switch / add user']),
+      profiles.listProfiles().length > 1 ? el('button.btn-danger.full', { onclick: () => confirmDelete(ctx) }, ['Delete this profile']) : null,
+    ]),
+
     // GOAL selector
     el('.card.settings-card', {}, [
-      el('.section-label', {}, ['MY GOAL']),
+      el('.section-label', {}, ['My goal']),
       el('.goal-select', {}, ['lose', 'maintain', 'gain'].map(gk => {
         const g = N.goalMeta(gk);
         return el('button.goal-opt', { class: s.goal === gk ? 'active' : '', onclick: () => pickGoal(gk, ctx) }, [
-          el('.goal-emoji', {}, [gk === 'lose' ? '📉' : gk === 'gain' ? '📈' : '⚖️']),
           el('.goal-name', {}, [g.label]),
         ]);
       })),
-      el('button.btn-ghost.full', { onclick: () => autoCalc(ctx) }, ['🧮  Auto-calculate my targets']),
+      el('button.btn-ghost.full', { onclick: () => autoCalc(ctx) }, ['Auto-calculate my targets']),
     ]),
 
     // BODY STATS
@@ -74,8 +87,8 @@ export async function render(root, ctx) {
 
     el('.card.settings-card', {}, [
       el('.section-label', {}, ['DATA']),
-      el('button.btn-ghost.full', { onclick: exportBackup }, ['⬇️  Export backup']),
-      el('button.btn-ghost.full', { onclick: () => importBackup(ctx) }, ['⬆️  Import backup']),
+      el('button.btn-ghost.full', { onclick: exportBackup }, ['Export backup']),
+      el('button.btn-ghost.full', { onclick: () => importBackup(ctx) }, ['Import backup']),
       el('button.btn-danger.full', { onclick: () => resetAll(ctx) }, ['Reset all data']),
     ]),
 
@@ -143,6 +156,13 @@ function importBackup(ctx) {
     reader.readAsText(file);
   });
   document.body.appendChild(input); input.click(); input.remove();
+}
+
+function confirmDelete(ctx) {
+  openSheet(el('div', {}, [
+    el('p', {}, ['Delete this profile and all its data on this device? This cannot be undone.']),
+    el('button.btn-danger.full', { onclick: () => { closeSheet(); ctx.deleteCurrentProfile(); } }, ['Delete profile']),
+  ]), { title: 'Delete profile' });
 }
 
 function resetAll(ctx) {

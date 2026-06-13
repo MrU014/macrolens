@@ -172,6 +172,11 @@ function showResult(est, thumbUrl, shotUrl, overlay, close, ctx) {
   const nameInput = el('input.result-name', { type: 'text', value: cur.name });
   nameInput.addEventListener('input', () => { cur.name = nameInput.value; });
 
+  let mealType = N.mealTypeForTime(store.timeNow());
+  const SECTIONS = [['breakfast', 'Breakfast'], ['morning_snack', 'Morning snack'], ['lunch', 'Lunch'], ['evening_snack', 'Evening snack'], ['dinner', 'Dinner'], ['midnight_snack', 'Midnight snack']];
+  const sectionSel = el('select.type-sel', {}, SECTIONS.map(([v, l]) => { const o = el('option', { value: v }, [l]); if (v === mealType) o.selected = true; return o; }));
+  sectionSel.addEventListener('change', () => { mealType = sectionSel.value; });
+
   const gramsLabel = el('.grams-big', {}, [`${cur.grams} g`]);
   const adjustGrams = (delta) => {
     const ng = Math.max(5, cur.grams + delta);
@@ -207,7 +212,8 @@ function showResult(est, thumbUrl, shotUrl, overlay, close, ctx) {
       nameInput,
       confBadge(cur.confidence),
       cur.assumptions ? el('.assumptions', {}, [`“${cur.assumptions}”`]) : null,
-      el('.section-label', {}, ['PORTION']),
+      el('.field', {}, [el('label', {}, ['Add to meal']), sectionSel]),
+      el('.section-label', {}, ['Portion']),
       gramsLabel,
       el('.stepper', {}, [
         el('button.step-btn', { onclick: () => adjustGrams(-50) }, ['−50g']),
@@ -224,7 +230,7 @@ function showResult(est, thumbUrl, shotUrl, overlay, close, ctx) {
     el('.result-save', {}, [
       el('button.btn-primary.full', { onclick: async () => {
         const meal = {
-          dateKey: store.todayKey(), time: store.timeNow(), mealType: N.mealTypeForTime(store.timeNow()),
+          dateKey: store.todayKey(), time: store.timeNow(), mealType,
           name: cur.name || 'Scanned meal', source: 'scan', grams: cur.grams,
           kcal: Math.round(cur.kcal), protein: cur.protein, carbs: cur.carbs, fat: cur.fat, fibre: cur.fibre,
           confidence: cur.confidence, photoThumb: thumbUrl,

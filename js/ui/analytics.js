@@ -3,7 +3,7 @@ import * as store from '../store.js';
 import * as N from '../nutrition.js';
 import { el } from './components.js';
 
-const ORANGE = '#e8833a', GREEN = '#7fae8b', GREEN_L = '#9ecfaa', TEAL = '#8fbfae', NEUTRAL = '#c9cdd4';
+const ORANGE = '#d8893c', GREEN = '#4e9a6b', GREEN_L = '#4e9a6b', TEAL = '#6fa394', NEUTRAL = '#8b94a1';
 let RANGE = 7;
 
 export async function render(root, ctx) {
@@ -61,10 +61,10 @@ export async function render(root, ctx) {
     el('.section-label', {}, ['TODAY']),
     el('.gains-grid', {}, [
       statCard('Nutrition', `${support}%`, 'protein + fuel', GREEN_L),
-      statCard('Protein Streak', `${streak}🔥`, 'days', ORANGE),
+      statCard('Protein Streak', String(streak), 'days', ORANGE),
       statCard('Days on Target', `${onTarget}/${n}`, `last ${RANGE}d`, ORANGE),
       statCard('Recovery', recovery.status === 'good' ? 'Solid' : recovery.status === 'ok' ? 'OK' : 'Low',
-        `${recovery.feedings} feedings`, recovery.status === 'good' ? GREEN_L : recovery.status === 'ok' ? NEUTRAL : '#ffb27d'),
+        `${recovery.feedings} feedings`, recovery.status === "good" ? GREEN_L : recovery.status === "ok" ? NEUTRAL : ORANGE),
     ]),
 
     // Trend meter (predicted weight change)
@@ -96,9 +96,9 @@ export async function render(root, ctx) {
 }
 
 function trendColor(goal, monthly) {
-  if (goal === 'lose') return monthly <= 0 ? GREEN_L : '#ffb27d';
-  if (goal === 'gain') return monthly >= 0 ? GREEN_L : '#ffb27d';
-  return Math.abs(monthly) < 0.5 ? GREEN_L : '#ffb27d';
+  if (goal === 'lose') return monthly <= 0 ? GREEN_L : ORANGE;
+  if (goal === 'gain') return monthly >= 0 ? GREEN_L : ORANGE;
+  return Math.abs(monthly) < 0.5 ? GREEN_L : ORANGE;
 }
 
 function statCard(label, value, sub, color) {
@@ -120,7 +120,7 @@ function barChart(values, goal) {
   const bw = (W - pad * 2) / values.length;
   const svg = svgEl(W, H);
   const gy = H - (goal / max) * (H - 20) - 10;
-  svg.appendChild(line(pad, gy, W - pad, gy, 'rgba(127,174,139,.5)', 1, '4 4'));
+  svg.appendChild(line(pad, gy, W - pad, gy, 'rgba(78,154,107,.5)', 1, '4 4'));
   svg.appendChild(text(W - pad, gy - 4, 'goal', 'end', GREEN_L));
   values.forEach((v, i) => {
     const h = (v / max) * (H - 20);
@@ -177,7 +177,7 @@ function heatmap(byDay) {
     grid.appendChild(el('.hm-row', {}, [k.slice(8)]));
     bucketed[di].forEach(v => {
       const a = v / maxCell;
-      grid.appendChild(el('.hm-cell', { style: { background: a === 0 ? 'rgba(255,255,255,.04)' : `rgba(127,174,139,${0.15 + a * 0.85})` }, title: `${Math.round(v)}g` }));
+      grid.appendChild(el('.hm-cell', { style: { background: a === 0 ? '#e9ebe9' : `rgba(78,154,107,${0.15 + a * 0.85})` }, title: `${Math.round(v)}g` }));
     });
   });
   return el('div', {}, [grid, el('.hm-note', {}, ['Darker = more protein that window. Spot the gaps.'])]);
@@ -190,7 +190,7 @@ function calendar(keys, byDay, s) {
     const t = N.sumMacros(meals);
     const score = meals.length ? N.dailyScore({ kcal: t.kcal, goalKcal: s.goalKcal, protein: t.protein, goalProtein: s.goalProtein, mealCount: meals.length, goal: s.goal }) : 0;
     const a = score / 100;
-    cal.appendChild(el('.cal-cell', { style: { background: score === 0 ? 'rgba(255,255,255,.04)' : `rgba(127,174,139,${0.12 + a * 0.88})` }, title: `${k}: ${score}` }));
+    cal.appendChild(el('.cal-cell', { style: { background: score === 0 ? '#e9ebe9' : `rgba(78,154,107,${0.12 + a * 0.88})` }, title: `${k}: ${score}` }));
   });
   return cal;
 }

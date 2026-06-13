@@ -70,7 +70,7 @@ function mealsList(meals, ctx) {
 }
 function mealRow(m, ctx) {
   return el('.hist-row', { onclick: () => ctx.openMealEdit(m) }, [
-    el('.hist-name', {}, [m.name, m.source === 'scan' ? el('span.tl-badge', {}, ['📷']) : null]),
+    el('.hist-name', {}, [m.name, m.source === 'scan' ? el('span.tl-badge', {}, ['scan']) : null]),
     el('.hist-macros', {}, [`${Math.round(m.kcal)} kcal · ${Math.round(m.protein)}g P`]),
   ]);
 }

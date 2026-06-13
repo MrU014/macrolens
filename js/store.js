@@ -1,7 +1,7 @@
 // store.js — IndexedDB persistence + in-memory state cache + export/import.
 // Stores: meals, weights, foodMemory, settings.
 
-const DB_NAME = 'macrolens';
+let activeDbName = 'macrolens';   // set per active profile in init()
 const DB_VERSION = 1;
 
 const DEFAULT_SETTINGS = {
@@ -57,7 +57,7 @@ export function recentKeys(n) {
 
 function open() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(activeDbName, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const d = e.target.result;
       if (!d.objectStoreNames.contains('meals')) {
@@ -85,7 +85,9 @@ function reqP(request) {
 function getAll(storeName) { return reqP(tx(storeName).getAll()); }
 
 // ---- init ----
-export async function init() {
+export async function init(dbName) {
+  if (db) { db.close(); db = null; }
+  activeDbName = dbName || 'macrolens';
   db = await open();
   const rows = await getAll('settings');
   const saved = {};
@@ -93,6 +95,8 @@ export async function init() {
   state.settings = { ...DEFAULT_SETTINGS, ...saved };
   return state;
 }
+
+export function close() { if (db) { db.close(); db = null; } }
 
 // ---- settings ----
 export function getSettings() { return state.settings; }
