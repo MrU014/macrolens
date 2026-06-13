@@ -1,5 +1,5 @@
 // sw.js — offline shell cache. Bump CACHE on every release.
-const CACHE = 'macrolens-v2';
+const CACHE = 'macrolens-v3';
 const SHELL = [
   './',
   './index.html',

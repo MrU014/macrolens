@@ -123,7 +123,10 @@ function timeline(meals, ctx) {
     return el('.empty', {}, ['Nothing logged yet today.', el('br'), el('span', {}, ['Tap Scan or Add food — it takes 15 seconds.'])]);
   }
   const groups = {};
-  for (const m of meals) (groups[m.mealType] ||= []).push(m);
+  for (const m of meals) {
+    const type = MEAL_META[m.mealType] ? m.mealType : 'evening_snack'; // remap legacy 'snack' etc.
+    (groups[type] ||= []).push(m);
+  }
   const wrap = el('.timeline');
   for (const type of MEAL_ORDER) {
     if (!groups[type]) continue;
