@@ -1,6 +1,6 @@
 # MacroLens 🔍💪
 
-A premium, dark-mode nutrition & muscle-gain companion. Scan meals with your camera, track calories/protein/fat/fibre with almost no effort, and watch your bulk progress — all on your phone, all offline-first.
+A premium, dark-mode nutrition companion for **any goal** — lose, maintain, or gain weight. Scan meals with your camera, track calories and macros with almost no effort, and watch your progress — all on your phone, all offline-first.
 
 > **Philosophy:** *Roughly right beats perfectly tracked.* Logging a meal should take under 15 seconds.
 
@@ -10,10 +10,11 @@ Built as a vanilla-JS Progressive Web App — no build step, no backend, no acco
 
 ## Features
 
-- **AI photo scan** — point your camera at a plate, get an estimated name, portion, and full macros (Google Gemini, free tier). Adjust with ±50 g steppers; everything stays editable.
-- **Home dashboard** — hero calorie ring + protein / fat / fibre satellites, Bulk Score, weight trend, estimated surplus, evening "calories to go" coaching, and a meal timeline.
-- **Fast manual add** — searchable food database of Indian / hostel staples, portion presets, "your usuals", quick-add chips (+200 ml milk, +2 eggs…), and custom meals.
-- **Analytics** — weekly averages, protein consistency, Mass Meter, protein streak, days-in-surplus, a protein heatmap, macro split, weight-vs-intake chart, and a Bulk Score calendar.
+- **Any goal** — pick lose / maintain / gain; the app calculates your calories & macros (Mifflin–St Jeor + activity) and adapts its language and scoring to your goal. Everything stays editable.
+- **AI photo scan** — point your camera at a plate, get an estimated name, portion, and full macros (Google Gemini, free tier). Adjust with steppers; everything stays editable.
+- **Clean home** — calorie ring + protein/carbs/fat/fibre bars, weight trend, goal-aware coaching, and today's meals grouped into six sections (breakfast, morning snack, lunch, evening snack, dinner, midnight snack).
+- **100+ foods + forgiving search** — Indian *and* global staples; search shrugs off misspellings ("biriyani", "yoghurt", "dahi") and partial words. Quick-add chips, "your usuals", portion presets, and custom meals.
+- **Stats tab** — Daily Score, weekly averages, protein consistency, Trend Meter, protein streak, days-on-target, protein heatmap, macro split, weight-vs-intake chart, and a score calendar.
 - **History** — every day, expandable, searchable; edit / duplicate / delete with undo.
 - **Offline & installable** — works with no signal; add to your home screen like a native app.
 - **Your data is yours** — one-tap JSON backup & restore.

@@ -178,9 +178,13 @@ function openMealForm(ctx, { title, meal, onSave, onDelete, onDuplicate, showExt
     drawMacros();
   }
 
+  const MEAL_TYPES = [
+    ['breakfast', '🌅 Breakfast'], ['morning_snack', '☕ Morning snack'], ['lunch', '☀️ Lunch'],
+    ['evening_snack', '🍎 Evening snack'], ['dinner', '🌙 Dinner'], ['midnight_snack', '🌃 Midnight snack'],
+  ];
   const typeSel = el('select.type-sel', {},
-    ['breakfast', 'lunch', 'snack', 'dinner'].map(t => {
-      const o = el('option', { value: t }, [t[0].toUpperCase() + t.slice(1)]);
+    MEAL_TYPES.map(([t, label]) => {
+      const o = el('option', { value: t }, [label]);
       if ((m.mealType || N.mealTypeForTime(store.timeNow())) === t) o.selected = true;
       return o;
     }));

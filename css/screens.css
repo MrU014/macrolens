@@ -202,3 +202,28 @@
 .weight-row { display: flex; align-items: baseline; gap: 8px; justify-content: center; }
 .weight-input { font-size: 32px; font-weight: 800; text-align: center; width: 140px; }
 .weight-unit { font-size: 18px; color: var(--text-dim); }
+
+/* ============ v2: clean hero + goals + score ============ */
+.hero { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.hero-ring { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.hero-cap { font-size: 9px; letter-spacing: 1.2px; color: var(--text-dim); font-weight: 600; }
+.hero-bars { display: flex; flex-direction: column; gap: 2px; }
+
+.weight-tile { display: block; }
+
+.tl-group-label { display: flex; justify-content: space-between; align-items: center; }
+.tl-group-kcal { color: var(--text-faint); font-weight: 500; font-size: 10.5px; }
+
+/* goal selector (profile + onboarding) */
+.goal-select { display: flex; gap: 8px; }
+.goal-opt { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 16px; transition: transform .12s ease, background .15s ease; }
+.goal-opt:active { transform: scale(.96); }
+.goal-opt.active { background: rgba(127, 174, 139, .16); border-color: rgba(127, 174, 139, .5); }
+.goal-emoji { font-size: 22px; }
+.goal-name { font-size: 11px; font-weight: 600; text-align: center; color: var(--text); }
+
+/* daily score hero (Stats) */
+.score-hero { display: flex; align-items: center; gap: 18px; }
+.score-big { font-size: 46px; font-weight: 800; color: var(--orange); letter-spacing: -1.5px; line-height: 1; }
+.score-title { font-size: 15px; font-weight: 700; }
+.score-sub { font-size: 12.5px; color: var(--green-l); margin-top: 2px; }

@@ -1,4 +1,4 @@
-// analytics.js — weekly averages, gains metrics, and hand-rolled charts.
+// analytics.js — the "Stats" tab. Daily Score + goal-aware metrics + charts.
 import * as store from '../store.js';
 import * as N from '../nutrition.js';
 import { el } from './components.js';
@@ -8,6 +8,7 @@ let RANGE = 7;
 
 export async function render(root, ctx) {
   const s = store.getSettings();
+  const g = N.goalMeta(s.goal);
   const [all, weights] = await Promise.all([store.getAllMeals(), store.getAllWeights()]);
   const mem = await store.getFoodMemory();
 
@@ -18,147 +19,128 @@ export async function render(root, ctx) {
   const dayTotals = keys.map(k => N.sumMacros(byDay.get(k) || []));
   const dayKcals = dayTotals.map(t => t.kcal);
   const dayProts = dayTotals.map(t => t.protein);
-  const loggedDays = dayTotals.filter((t, i) => (byDay.get(keys[i]) || []).length > 0);
-  const n = loggedDays.length || 1;
-  const avg = (arr) => arr.reduce((a, b) => a + b, 0) / (arr.length || 1);
+  const loggedIdx = keys.map((k, i) => ((byDay.get(k) || []).length ? i : -1)).filter(i => i >= 0);
+  const n = loggedIdx.length || 1;
+  const avgOf = (arr) => Math.round(loggedIdx.reduce((sum, i) => sum + arr[i], 0) / n);
 
-  const avgKcal = Math.round(dayKcals.filter((_, i) => (byDay.get(keys[i]) || []).length).reduce((a, b) => a + b, 0) / n);
-  const avgProt = Math.round(dayProts.filter((_, i) => (byDay.get(keys[i]) || []).length).reduce((a, b) => a + b, 0) / n);
-  const avgSurplus = avgKcal - s.maintenanceKcal;
+  const avgKcal = avgOf(dayKcals);
+  const avgProt = avgOf(dayProts);
+  const net = avgKcal - s.maintenanceKcal;
   const trend = N.weightTrend(weights);
 
-  // gains metrics (today)
+  // today
   const today = N.sumMacros(byDay.get(store.todayKey()) || []);
-  const muscle = N.muscleSupport({ protein: today.protein, goalProtein: s.goalProtein, kcal: today.kcal, goalKcal: s.goalKcal });
+  const todayMealCount = (byDay.get(store.todayKey()) || []).length;
+  const score = N.dailyScore({ kcal: today.kcal, goalKcal: s.goalKcal, protein: today.protein, goalProtein: s.goalProtein, mealCount: todayMealCount, goal: s.goal });
+  const support = N.muscleSupport({ protein: today.protein, goalProtein: s.goalProtein, kcal: today.kcal, goalKcal: s.goalKcal });
   const streakDays = store.recentKeys(21).map(k => ({ dateKey: k, protein: N.sumMacros(byDay.get(k) || []).protein }))
     .filter(d => d.dateKey !== store.todayKey() || d.protein >= s.goalProtein);
   const streak = N.proteinStreak(streakDays, s.goalProtein);
-  const surplusDays = N.daysInSurplus(dayKcals.filter((_, i) => (byDay.get(keys[i]) || []).length), s.maintenanceKcal);
+  const onTarget = N.daysOnTarget(loggedIdx.map(i => dayKcals[i]), s.goalKcal, s.goal);
   const recovery = N.recoveryIndicator(byDay.get(store.todayKey()) || []);
-  const monthlyGain = N.predictMonthlyGain(avgKcal, s.maintenanceKcal);
-  const consistency = Math.round((dayProts.filter((p, i) => (byDay.get(keys[i]) || []).length && p >= 0.9 * s.goalProtein).length / n) * 100);
+  const monthly = N.predictMonthlyChange(avgKcal, s.maintenanceKcal);
+  const consistency = Math.round((loggedIdx.filter(i => dayProts[i] >= 0.9 * s.goalProtein).length / n) * 100);
 
   root.replaceChildren();
-  const screen = el('.screen.analytics', {}, [
+  root.appendChild(el('.screen.analytics', {}, [
     el('.an-head', {}, [
-      el('h1.page-title', {}, ['Analytics']),
+      el('h1.page-title', {}, ['Stats']),
       el('.range-switch', {}, [7, 30, 90].map(r =>
         el('button.range-btn', { class: r === RANGE ? 'active' : '', onclick: () => { RANGE = r; render(root, ctx); } }, [`${r}d`]))),
     ]),
 
-    // GAINS PANEL
-    el('.section-label', {}, ['GAINS']),
+    // Daily Score hero
+    el('.card.score-hero', {}, [
+      el('.score-big', {}, [String(score)]),
+      el('div', {}, [
+        el('.score-title', {}, ['Today’s Score']),
+        el('.score-sub', {}, [N.scoreLabel(score)]),
+      ]),
+    ]),
+
+    el('.section-label', {}, ['TODAY']),
     el('.gains-grid', {}, [
-      statCard('Muscle Support', `${muscle}%`, 'today', GREEN_L),
+      statCard('Nutrition', `${support}%`, 'protein + fuel', GREEN_L),
       statCard('Protein Streak', `${streak}🔥`, 'days', ORANGE),
-      statCard('Days in Surplus', `${surplusDays}/${n}`, `last ${RANGE}d`, ORANGE),
+      statCard('Days on Target', `${onTarget}/${n}`, `last ${RANGE}d`, ORANGE),
       statCard('Recovery', recovery.status === 'good' ? 'Solid' : recovery.status === 'ok' ? 'OK' : 'Low',
         `${recovery.feedings} feedings`, recovery.status === 'good' ? GREEN_L : recovery.status === 'ok' ? NEUTRAL : '#ffb27d'),
     ]),
 
-    // MASS METER
+    // Trend meter (predicted weight change)
     el('.card.mass-meter', {}, [
-      el('.mm-head', {}, [el('span', {}, ['Mass Meter']), el('.mm-val', { style: { color: monthlyGain >= 0 ? GREEN_L : '#ffb27d' } }, [`${monthlyGain >= 0 ? '+' : ''}${monthlyGain} kg/mo`])]),
-      gauge(monthlyGain, -2, 4),
-      el('.mm-sub', {}, [`Projected from your ${RANGE}-day average intake vs maintenance.`]),
+      el('.mm-head', {}, [el('span', {}, ['Trend Meter']),
+        el('.mm-val', { style: { color: trendColor(s.goal, monthly) } }, [`${monthly >= 0 ? '+' : ''}${monthly} kg/mo`])]),
+      gauge(monthly, -3, 3),
+      el('.mm-sub', {}, [`Projected from your ${RANGE}-day average intake vs maintenance (${s.maintenanceKcal} kcal).`]),
     ]),
 
-    // WEEKLY AVERAGES
     el('.section-label', {}, [`AVERAGES · LAST ${RANGE} DAYS`]),
     el('.avg-grid', {}, [
       statCard('Avg Calories', avgKcal.toLocaleString(), 'kcal/day', ORANGE),
       statCard('Avg Protein', `${avgProt}g`, 'per day', GREEN_L),
-      statCard('Avg Surplus', `${avgSurplus >= 0 ? '+' : ''}${avgSurplus}`, 'kcal/day', ORANGE),
+      statCard(`Avg ${g.netLabel === 'NET' ? 'Net' : g.netLabel[0] + g.netLabel.slice(1).toLowerCase()}`, `${net >= 0 ? '+' : ''}${net}`, 'kcal/day', net >= 0 ? ORANGE : GREEN_L),
       statCard('Weight Δ', trend.deltaWeek != null ? `${trend.deltaWeek >= 0 ? '+' : ''}${trend.deltaWeek}` : '—', 'kg/week', GREEN_L),
     ]),
 
-    // PROTEIN CONSISTENCY
-    el('.card', {}, [
-      el('.chart-title', {}, ['Protein consistency']),
-      el('.consistency', {}, [
-        el('.cons-num', {}, [`${consistency}%`]),
-        el('.cons-sub', {}, [`of logged days hit ≥90% of your ${s.goalProtein}g goal`]),
-      ]),
-    ]),
+    el('.card', {}, [el('.chart-title', {}, ['Protein consistency']),
+      el('.consistency', {}, [el('.cons-num', {}, [`${consistency}%`]), el('.cons-sub', {}, [`of logged days hit ≥90% of your ${s.goalProtein}g goal`])])]),
 
-    // CALORIES BAR CHART
-    el('.card', {}, [el('.chart-title', {}, ['Calories vs goal']), barChart(keys, dayKcals, s.goalKcal)]),
-
-    // WEIGHT VS INTAKE
+    el('.card', {}, [el('.chart-title', {}, ['Calories vs goal']), barChart(dayKcals, s.goalKcal)]),
     el('.card', {}, [el('.chart-title', {}, ['Weight vs intake (7-day avg)']), weightVsIntake(keys, dayKcals, weights)]),
-
-    // MACRO SPLIT
     el('.card', {}, [el('.chart-title', {}, ['Macro split (avg)']), macroDonut(dayTotals)]),
-
-    // PROTEIN HEATMAP
     el('.card', {}, [el('.chart-title', {}, ['Protein by time of day']), heatmap(byDay)]),
-
-    // CALENDAR HEATMAP
-    el('.card', {}, [el('.chart-title', {}, ['Bulk Score calendar']), calendar(keys, byDay, s)]),
-
-    // TOP MEALS
+    el('.card', {}, [el('.chart-title', {}, ['Daily Score calendar']), calendar(keys, byDay, s)]),
     el('.card', {}, [el('.chart-title', {}, ['Most-logged meals']), topMeals(mem)]),
-  ]);
-  root.appendChild(screen);
+  ]));
+}
+
+function trendColor(goal, monthly) {
+  if (goal === 'lose') return monthly <= 0 ? GREEN_L : '#ffb27d';
+  if (goal === 'gain') return monthly >= 0 ? GREEN_L : '#ffb27d';
+  return Math.abs(monthly) < 0.5 ? GREEN_L : '#ffb27d';
 }
 
 function statCard(label, value, sub, color) {
-  return el('.card.stat', {}, [
-    el('.stat-label', {}, [label]),
-    el('.stat-val', { style: { color } }, [value]),
-    el('.stat-sub', {}, [sub]),
-  ]);
+  return el('.card.stat', {}, [el('.stat-label', {}, [label]), el('.stat-val', { style: { color } }, [value]), el('.stat-sub', {}, [sub])]);
 }
 
 function gauge(value, min, max) {
   const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
   const zero = Math.max(0, Math.min(1, (0 - min) / (max - min)));
-  return el('.gauge', {}, [
-    el('.gauge-track', {}, [
-      el('.gauge-zero', { style: { left: (zero * 100) + '%' } }),
-      el('.gauge-fill', { style: { width: (pct * 100) + '%', background: value >= 0 ? GREEN : '#ffb27d' } }),
-    ]),
-  ]);
+  return el('.gauge', {}, [el('.gauge-track', {}, [
+    el('.gauge-zero', { style: { left: (zero * 100) + '%' } }),
+    el('.gauge-fill', { style: { width: (pct * 100) + '%', background: value >= 0 ? ORANGE : GREEN } }),
+  ])]);
 }
 
-// ---- bar chart (SVG) ----
-function barChart(keys, values, goal) {
+function barChart(values, goal) {
   const W = 320, H = 120, pad = 6;
   const max = Math.max(goal * 1.1, ...values, 1);
   const bw = (W - pad * 2) / values.length;
   const svg = svgEl(W, H);
-  // goal line
   const gy = H - (goal / max) * (H - 20) - 10;
   svg.appendChild(line(pad, gy, W - pad, gy, 'rgba(127,174,139,.5)', 1, '4 4'));
   svg.appendChild(text(W - pad, gy - 4, 'goal', 'end', GREEN_L));
   values.forEach((v, i) => {
     const h = (v / max) * (H - 20);
-    const x = pad + i * bw + bw * 0.18;
-    const w = bw * 0.64;
-    const y = H - h - 10;
-    svg.appendChild(rect(x, y, w, h, v >= goal ? GREEN : ORANGE, 3));
+    svg.appendChild(rect(pad + i * bw + bw * 0.18, H - h - 10, bw * 0.64, h, v >= goal ? GREEN : ORANGE, 3));
   });
   return wrapChart(svg);
 }
 
-// ---- weight vs intake dual line ----
 function weightVsIntake(keys, kcals, weights) {
   const W = 320, H = 130, pad = 22;
   const wMap = new Map(weights.map(w => [w.dateKey, w.kg]));
   const wSeries = keys.map(k => wMap.has(k) ? wMap.get(k) : null);
   const kSmooth = N.rollingAverage(kcals, 7);
   const svg = svgEl(W, H);
-
-  // kcal line (orange)
   const kMax = Math.max(...kSmooth, 1), kMin = Math.min(...kSmooth.filter(Boolean), kMax * 0.6);
   const kPts = kSmooth.map((v, i) => [pad + (i / (keys.length - 1 || 1)) * (W - pad * 2), H - pad - ((v - kMin) / (kMax - kMin || 1)) * (H - pad * 2)]);
   svg.appendChild(polyline(kPts, ORANGE, 2));
-
-  // weight line (green), only across known points
   const known = wSeries.map((v, i) => [v, i]).filter(([v]) => v != null);
   if (known.length >= 2) {
-    const vals = known.map(([v]) => v);
-    const wMin = Math.min(...vals), wMax = Math.max(...vals);
+    const vals = known.map(([v]) => v); const wMin = Math.min(...vals), wMax = Math.max(...vals);
     const wPts = known.map(([v, i]) => [pad + (i / (keys.length - 1 || 1)) * (W - pad * 2), H - pad - ((v - wMin) / (wMax - wMin || 1)) * (H - pad * 2)]);
     svg.appendChild(polyline(wPts, GREEN_L, 2));
     wPts.forEach(p => svg.appendChild(dot(p[0], p[1], GREEN_L)));
@@ -166,29 +148,21 @@ function weightVsIntake(keys, kcals, weights) {
   return el('div', {}, [wrapChart(svg), el('.legend', {}, [legendDot(ORANGE, 'Calories (avg)'), legendDot(GREEN_L, 'Weight')])]);
 }
 
-// ---- macro donut ----
 function macroDonut(dayTotals) {
   const sum = dayTotals.reduce((a, t) => ({ p: a.p + t.protein, c: a.c + t.carbs, f: a.f + t.fat }), { p: 0, c: 0, f: 0 });
-  const pK = sum.p * 4, cK = sum.c * 4, fK = sum.f * 9;
-  const tot = pK + cK + fK || 1;
-  const pp = pK / tot, cp = cK / tot, fp = fK / tot;
-  const deg = (x) => x * 360;
-  const g = `conic-gradient(${GREEN} 0 ${deg(pp)}deg, ${NEUTRAL} ${deg(pp)}deg ${deg(pp + cp)}deg, ${ORANGE} ${deg(pp + cp)}deg 360deg)`;
+  const pK = sum.p * 4, cK = sum.c * 4, fK = sum.f * 9, tot = pK + cK + fK || 1;
+  const pp = pK / tot, cp = cK / tot, fp = fK / tot, deg = (x) => x * 360;
+  const grad = `conic-gradient(${GREEN} 0 ${deg(pp)}deg, ${NEUTRAL} ${deg(pp)}deg ${deg(pp + cp)}deg, ${ORANGE} ${deg(pp + cp)}deg 360deg)`;
   return el('.donut-wrap', {}, [
-    el('.donut', { style: { background: g } }, [el('.donut-hole')]),
-    el('.donut-legend', {}, [
-      legendDot(GREEN, `Protein ${Math.round(pp * 100)}%`),
-      legendDot(NEUTRAL, `Carbs ${Math.round(cp * 100)}%`),
-      legendDot(ORANGE, `Fat ${Math.round(fp * 100)}%`),
-    ]),
+    el('.donut', { style: { background: grad } }, [el('.donut-hole')]),
+    el('.donut-legend', {}, [legendDot(GREEN, `Protein ${Math.round(pp * 100)}%`), legendDot(NEUTRAL, `Carbs ${Math.round(cp * 100)}%`), legendDot(ORANGE, `Fat ${Math.round(fp * 100)}%`)]),
   ]);
 }
 
-// ---- protein heatmap (last 7 days × 3h buckets) ----
 function heatmap(byDay) {
   const keys = store.recentKeys(7);
   const matrix = N.proteinHeatmap([].concat(...keys.map(k => byDay.get(k) || [])), keys);
-  const buckets = ['0-3', '3-6', '6-9', '9-12', '12-15', '15-18', '18-21', '21-24'];
+  const buckets = ['0', '3', '6', '9', '12', '15', '18', '21'];
   let maxCell = 1;
   const bucketed = matrix.map(row => {
     const b = new Array(8).fill(0);
@@ -198,7 +172,7 @@ function heatmap(byDay) {
   });
   const grid = el('.heatmap');
   grid.appendChild(el('.hm-corner'));
-  buckets.forEach(b => grid.appendChild(el('.hm-col', {}, [b.split('-')[0]])));
+  buckets.forEach(b => grid.appendChild(el('.hm-col', {}, [b])));
   keys.forEach((k, di) => {
     grid.appendChild(el('.hm-row', {}, [k.slice(8)]));
     bucketed[di].forEach(v => {
@@ -209,13 +183,12 @@ function heatmap(byDay) {
   return el('div', {}, [grid, el('.hm-note', {}, ['Darker = more protein that window. Spot the gaps.'])]);
 }
 
-// ---- bulk score calendar ----
 function calendar(keys, byDay, s) {
   const cal = el('.calendar');
   keys.forEach(k => {
     const meals = byDay.get(k) || [];
     const t = N.sumMacros(meals);
-    const score = meals.length ? N.bulkScore({ kcal: t.kcal, goalKcal: s.goalKcal, protein: t.protein, goalProtein: s.goalProtein, mealCount: meals.length }) : 0;
+    const score = meals.length ? N.dailyScore({ kcal: t.kcal, goalKcal: s.goalKcal, protein: t.protein, goalProtein: s.goalProtein, mealCount: meals.length, goal: s.goal }) : 0;
     const a = score / 100;
     cal.appendChild(el('.cal-cell', { style: { background: score === 0 ? 'rgba(255,255,255,.04)' : `rgba(127,174,139,${0.12 + a * 0.88})` }, title: `${k}: ${score}` }));
   });
@@ -225,13 +198,9 @@ function calendar(keys, byDay, s) {
 function topMeals(mem) {
   const top = [...mem].sort((a, b) => b.count - a.count).slice(0, 5);
   if (!top.length) return el('.empty-sm', {}, ['Log meals and your favourites show up here.']);
-  return el('.top-meals', {}, top.map(m => el('.top-row', {}, [
-    el('.top-name', {}, [m.name]),
-    el('.top-count', {}, [`${m.count}×`]),
-  ])));
+  return el('.top-meals', {}, top.map(m => el('.top-row', {}, [el('.top-name', {}, [m.name]), el('.top-count', {}, [`${m.count}×`])])));
 }
 
-// ---- tiny SVG helpers ----
 const NS = 'http://www.w3.org/2000/svg';
 function svgEl(w, h) { const s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', `0 0 ${w} ${h}`); s.setAttribute('width', '100%'); s.setAttribute('height', h); return s; }
 function rect(x, y, w, h, fill, r = 0) { const e = document.createElementNS(NS, 'rect'); e.setAttribute('x', x); e.setAttribute('y', y); e.setAttribute('width', w); e.setAttribute('height', Math.max(0, h)); e.setAttribute('rx', r); e.setAttribute('fill', fill); return e; }

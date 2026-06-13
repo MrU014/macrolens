@@ -1,71 +1,110 @@
-// profile.js — personal details, goals, AI key, and data management.
+// profile.js — goal, body stats, targets, AI key, and data management.
 import * as store from '../store.js';
+import * as N from '../nutrition.js';
 import { testKey } from '../gemini.js';
 import { el, openSheet, closeSheet, toast } from './components.js';
 
 export async function render(root, ctx) {
   const s = store.getSettings();
 
-  const numField = (key, label, suffix = '', opts = {}) => {
-    const input = el('input.num-input', { type: 'number', inputmode: 'decimal', step: opts.step || '1', value: s[key] ?? '' });
-    input.addEventListener('change', async () => {
-      const v = input.value === '' ? null : parseFloat(input.value);
-      await store.saveSettings({ [key]: v });
-      toast('Saved');
-    });
+  const numField = (key, label, suffix = '', step = '1') => {
+    const input = el('input.num-input', { type: 'number', inputmode: 'decimal', step, value: s[key] ?? '' });
+    input.addEventListener('change', async () => { await store.saveSettings({ [key]: input.value === '' ? null : parseFloat(input.value) }); toast('Saved'); });
     return el('.field.row-field', {}, [el('label', {}, [label]), el('.num-wrap', {}, [input, suffix ? el('span.num-suffix', {}, [suffix]) : null])]);
   };
-
   const textField = (key, label, placeholder = '') => {
     const input = el('input.search-input', { type: 'text', placeholder, value: s[key] ?? '' });
     input.addEventListener('change', async () => { await store.saveSettings({ [key]: input.value }); toast('Saved'); });
     return el('.field', {}, [el('label', {}, [label]), input]);
   };
-
   const dateField = (key, label) => {
     const input = el('input.search-input', { type: 'date', value: s[key] ?? '' });
     input.addEventListener('change', async () => { await store.saveSettings({ [key]: input.value }); toast('Saved'); });
     return el('.field', {}, [el('label', {}, [label]), input]);
+  };
+  const selectField = (key, label, options) => {
+    const sel = el('select.type-sel', {}, options.map(([v, l]) => { const o = el('option', { value: v }, [l]); if (String(s[key]) === String(v)) o.selected = true; return o; }));
+    sel.addEventListener('change', async () => { await store.saveSettings({ [key]: isNaN(sel.value) ? sel.value : parseFloat(sel.value) }); toast('Saved'); });
+    return el('.field.row-field', {}, [el('label', {}, [label]), sel]);
   };
 
   root.replaceChildren();
   root.appendChild(el('.screen.profile', {}, [
     el('h1.page-title', {}, ['Profile']),
 
-    section('YOU', [
-      textField('name', 'Name', 'Your name'),
-      el('.field.row-field', {}, [el('label', {}, ['Current weight']),
-        el('button.btn-ghost', { onclick: () => ctx.openWeight() }, [s.currentWeightKg ? `${s.currentWeightKg} kg` : 'Log weight'])]),
-      numField('targetWeightKg', 'Target weight', 'kg', { step: '0.1' }),
-      dateField('targetDate', 'Target date'),
-      dateField('startDate', 'Bulk start date'),
-      numField('gymDaysPerWeek', 'Gym days / week'),
+    // GOAL selector
+    el('.card.settings-card', {}, [
+      el('.section-label', {}, ['MY GOAL']),
+      el('.goal-select', {}, ['lose', 'maintain', 'gain'].map(gk => {
+        const g = N.goalMeta(gk);
+        return el('button.goal-opt', { class: s.goal === gk ? 'active' : '', onclick: () => pickGoal(gk, ctx) }, [
+          el('.goal-emoji', {}, [gk === 'lose' ? '📉' : gk === 'gain' ? '📈' : '⚖️']),
+          el('.goal-name', {}, [g.label]),
+        ]);
+      })),
+      el('button.btn-ghost.full', { onclick: () => autoCalc(ctx) }, ['🧮  Auto-calculate my targets']),
     ]),
 
-    section('GOALS', [
-      el('.field.row-field', {}, [el('label', {}, ['Maintenance']),
-        el('.num-wrap', {}, [String(s.maintenanceKcal), el('span.num-suffix', {}, ['kcal'])])]),
-      el('button.btn-ghost.full', { onclick: () => openCalculator(ctx) }, ['🧮  Calculate maintenance']),
-      numField('goalKcal', 'Daily calories', 'kcal'),
+    // BODY STATS
+    el('.card.settings-card', {}, [
+      el('.section-label', {}, ['YOU']),
+      textField('name', 'Name', 'Your name'),
+      selectField('sex', 'Sex', [['male', 'Male'], ['female', 'Female']]),
+      numField('age', 'Age', 'yr'),
+      numField('heightCm', 'Height', 'cm'),
+      el('.field.row-field', {}, [el('label', {}, ['Current weight']),
+        el('button.btn-ghost', { onclick: () => ctx.openWeight() }, [s.currentWeightKg ? `${s.currentWeightKg} kg` : 'Log weight'])]),
+      numField('targetWeightKg', 'Target weight', 'kg', '0.1'),
+      dateField('targetDate', 'Target date'),
+      selectField('activity', 'Activity', [['1.2', 'Sedentary'], ['1.375', 'Light (1-3 gym/wk)'], ['1.55', 'Moderate (3-5)'], ['1.725', 'Heavy (6-7)']]),
+    ]),
+
+    // TARGETS
+    el('.card.settings-card', {}, [
+      el('.section-label', {}, ['DAILY TARGETS']),
+      el('.field.row-field', {}, [el('label', {}, ['Maintenance']), el('.num-wrap', {}, [String(s.maintenanceKcal), el('span.num-suffix', {}, ['kcal'])])]),
+      numField('goalKcal', 'Calories', 'kcal'),
       numField('goalProtein', 'Protein', 'g'),
+      numField('goalCarbs', 'Carbs', 'g'),
       numField('goalFat', 'Fat', 'g'),
       numField('goalFibre', 'Fibre', 'g'),
     ]),
 
     apiSection(s),
 
-    section('DATA', [
+    el('.card.settings-card', {}, [
+      el('.section-label', {}, ['DATA']),
       el('button.btn-ghost.full', { onclick: exportBackup }, ['⬇️  Export backup']),
       el('button.btn-ghost.full', { onclick: () => importBackup(ctx) }, ['⬆️  Import backup']),
       el('button.btn-danger.full', { onclick: () => resetAll(ctx) }, ['Reset all data']),
     ]),
 
-    el('.app-footer', {}, ['MacroLens · roughly right beats perfectly tracked']),
+    el('.app-footer', {}, ['MacroLens · track your way']),
   ]));
 }
 
-function section(title, fields) {
-  return el('.card.settings-card', {}, [el('.section-label', {}, [title]), ...fields]);
+async function pickGoal(goal, ctx) {
+  const s = store.getSettings();
+  const patch = { goal };
+  // recompute targets immediately if we have the body stats
+  if (s.currentWeightKg && s.age && s.heightCm) {
+    Object.assign(patch, N.computeTargets({ sex: s.sex, age: s.age, heightCm: s.heightCm, weightKg: s.currentWeightKg, activity: s.activity, goal }));
+  }
+  await store.saveSettings(patch);
+  toast(`Goal set: ${N.goalMeta(goal).label}`);
+  ctx.refresh();
+}
+
+async function autoCalc(ctx) {
+  const s = store.getSettings();
+  if (!s.currentWeightKg || !s.age || !s.heightCm) {
+    toast('Add your age, height & weight first');
+    return;
+  }
+  const t = N.computeTargets({ sex: s.sex, age: s.age, heightCm: s.heightCm, weightKg: s.currentWeightKg, activity: s.activity, goal: s.goal });
+  await store.saveSettings(t);
+  toast('Targets updated 🎯');
+  ctx.refresh();
 }
 
 function apiSection(s) {
@@ -77,58 +116,12 @@ function apiSection(s) {
     el('.section-label', {}, ['AI SCANNING']),
     el('.field', {}, [el('label', {}, ['Gemini API key']), el('.key-row', {}, [input, reveal])]),
     el('.key-actions', {}, [
-      el('button.btn-primary', { onclick: async () => {
-        status.textContent = 'Testing…'; status.className = 'key-status';
-        const r = await testKey(input.value.trim());
-        status.textContent = r.message; status.className = 'key-status ' + (r.ok ? 'ok' : 'bad');
-      } }, ['Test key']),
+      el('button.btn-primary', { onclick: async () => { status.textContent = 'Testing…'; status.className = 'key-status'; const r = await testKey(input.value.trim()); status.textContent = r.message; status.className = 'key-status ' + (r.ok ? 'ok' : 'bad'); } }, ['Test key']),
       el('a.btn-ghost', { href: 'https://aistudio.google.com/app/apikey', target: '_blank', rel: 'noopener' }, ['Get a free key ↗']),
     ]),
     status,
     el('.hint', {}, ['Stored only on this device and sent directly to Google over HTTPS. Excluded from backups.']),
   ]);
-}
-
-// Mifflin–St Jeor maintenance calculator.
-function openCalculator(ctx) {
-  const s = store.getSettings();
-  const f = (label, key, val, suffix) => {
-    const inp = el('input.num-input', { type: 'number', inputmode: 'decimal', value: val ?? '' });
-    inp.dataset.key = key;
-    return { row: el('.field.row-field', {}, [el('label', {}, [label]), el('.num-wrap', {}, [inp, el('span.num-suffix', {}, [suffix])])]), inp };
-  };
-  const age = f('Age', 'age', s.age, 'yr');
-  const height = f('Height', 'heightCm', s.heightCm, 'cm');
-  const weight = f('Weight', 'w', s.currentWeightKg, 'kg');
-  const activity = el('select.type-sel', {}, [
-    ['1.2', 'Sedentary'], ['1.375', 'Light (1-3 gym/wk)'], ['1.55', 'Moderate (3-5)'], ['1.725', 'Heavy (6-7)'],
-  ].map(([v, l]) => el('option', { value: v }, [l])));
-  activity.value = '1.55';
-  const result = el('.calc-result');
-
-  const body = el('div', {}, [
-    el('.hint', {}, ['Mifflin–St Jeor estimate. Tune it over a week against your real weight trend.']),
-    age.row, height.row, weight.row,
-    el('.field', {}, [el('label', {}, ['Activity']), activity]),
-    el('button.btn-primary.full', { onclick: async () => {
-      const a = parseFloat(age.inp.value), h = parseFloat(height.inp.value), w = parseFloat(weight.inp.value);
-      if (!a || !h || !w) { toast('Fill age, height, weight'); return; }
-      const bmr = 10 * w + 6.25 * h - 5 * a + 5; // male formula
-      const maint = Math.round(bmr * parseFloat(activity.value));
-      const goalKcal = maint + 300;
-      const goalProtein = Math.round(w * 2);
-      await store.saveSettings({ age: a, heightCm: h, currentWeightKg: w, maintenanceKcal: maint,
-        goalKcal, goalProtein, goalFat: Math.round((goalKcal * 0.25) / 9), goalFibre: 35 });
-      result.replaceChildren(el('.calc-out', {}, [
-        `Maintenance ≈ ${maint} kcal`, el('br'),
-        `Lean-bulk target set: ${goalKcal} kcal · ${goalProtein}g protein`,
-      ]));
-      toast('Goals updated');
-      setTimeout(() => { closeSheet(); ctx.refresh(); }, 1400);
-    } }, ['Calculate & set goals']),
-    result,
-  ]);
-  openSheet(body, { title: 'Maintenance calculator' });
 }
 
 async function exportBackup() {
@@ -146,12 +139,7 @@ function importBackup(ctx) {
   input.addEventListener('change', () => {
     const file = input.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        await store.importData(JSON.parse(reader.result));
-        toast('Backup restored 🎉'); ctx.refresh(); ctx.go('home');
-      } catch (e) { toast(e.message || 'Could not read that file'); }
-    };
+    reader.onload = async () => { try { await store.importData(JSON.parse(reader.result)); toast('Backup restored 🎉'); ctx.refresh(); ctx.go('home'); } catch (e) { toast(e.message || 'Could not read that file'); } };
     reader.readAsText(file);
   });
   document.body.appendChild(input); input.click(); input.remove();
@@ -160,11 +148,9 @@ function importBackup(ctx) {
 function resetAll(ctx) {
   const body = el('div', {}, [
     el('p', {}, ['This permanently deletes all meals, weights, and settings on this device. This cannot be undone.']),
-    el('button.btn-danger.full', { onclick: async () => {
-      const confirmBtn = el('button.btn-danger.full', { onclick: async () => {
-        await store.resetAll(); closeSheet(); toast('Everything reset'); ctx.go('home'); ctx.refresh();
-      } }, ['Tap again to confirm delete']);
-      body.replaceChildren(el('p', {}, ['Are you absolutely sure?']), confirmBtn);
+    el('button.btn-danger.full', { onclick: () => {
+      body.replaceChildren(el('p', {}, ['Are you absolutely sure?']),
+        el('button.btn-danger.full', { onclick: async () => { await store.resetAll(); closeSheet(); toast('Everything reset'); ctx.go('home'); ctx.refresh(); } }, ['Tap again to confirm delete']));
     } }, ['Delete all data']),
   ]);
   openSheet(body, { title: 'Reset all data' });

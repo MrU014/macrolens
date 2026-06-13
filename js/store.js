@@ -6,16 +6,20 @@ const DB_VERSION = 1;
 
 const DEFAULT_SETTINGS = {
   name: '',
+  goal: 'gain',              // 'lose' | 'maintain' | 'gain'
+  sex: 'male',               // 'male' | 'female' (Mifflin constant)
+  activity: 1.55,            // activity multiplier
   currentWeightKg: null,
   targetWeightKg: null,
   targetDate: null,          // ISO date string
-  startDate: null,           // ISO date string — when lean bulk began
+  startDate: null,           // ISO date string — when this goal began
   heightCm: null,
   age: null,
   gymDaysPerWeek: 4,
   maintenanceKcal: 2700,
   goalKcal: 3000,
   goalProtein: 170,
+  goalCarbs: 300,
   goalFat: 85,
   goalFibre: 35,
   geminiApiKey: '',
